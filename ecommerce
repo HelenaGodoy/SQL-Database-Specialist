@@ -1,0 +1,150 @@
+-- Tabela de Clientes (PF e PJ)
+create table clients (
+    idClient int auto_increment primary key,
+    Fname varchar(50) not null,
+    Minit char(1),
+    Lname varchar(50) not null,
+    CPF char(11) unique,
+    CNPJ char(14) unique,
+    Address varchar(255),
+    constraint check_cpf_cnpj check ((CPF is not null and CNPJ is null) or 
+    (CPF is null and CNPJ is not null))
+);
+
+-- Tabela de Vendedores
+create table seller (
+    idSeller int auto_increment primary key,
+    SocialName varchar(255),
+    CNPJ char(14),
+    Address varchar(255),
+    CPF char(11) unique
+);
+
+-- Tabela de Fornecedores
+create table supplier (
+    idSupplier int auto_increment primary key,
+    SocialName varchar(255) not null,
+    CNPJ char(14) unique not null,
+    Address varchar(255),
+    contact varchar(11)
+);
+
+-- Tabela de Produtos
+create table product (
+    idProduct int auto_increment primary key,
+    Pname varchar(100) not null,
+    Price float not null,
+    Stock int default 0
+);
+
+-- Tabela de Relacionamento de Produto e Fornecedor
+create table productSupplier (
+    idPsProduct int,
+    idPsSupplier int,
+    quantity int,
+    constraint fk_ps_product foreign key (idPsProduct) references product(idProduct),
+    constraint fk_ps_supplier foreign key (idPsSupplier) references supplier(idSupplier),
+    primary key (idPsProduct, idPsSupplier)
+);
+
+-- Tabela de Pagamentos (Suporte para múltiplas formas de pagamento)
+create table payments (
+    idPayment int auto_increment primary key,
+    idClient int not null,
+    typePayment enum('Boleto','Cartão','Dois cartões', 'Pix'),
+    limitAvailable float,
+    constraint fk_payment_client foreign key (idClient) references clients(idClient)
+);
+
+-- Tabela de Pedidos (Orders) com Código de Rastreamento e Status de Entrega
+create table orders (
+    idOrder int auto_increment primary key,
+    idOrderClient int not null,
+    orderStatus enum('Cancelado','Confirmado','Em processamento') default 'Em processamento',
+    orderDescription varchar(255),
+    sendValue float default 10,
+    paymentCash boolean default false, 
+    trackingCode varchar(50),  -- código de rastreio
+    deliveryStatus enum('Pendente', 'Enviado', 'Entregue') default 'Pendente',  -- status de entrega
+    constraint fk_order_client foreign key (idOrderClient) references clients(idClient)
+);
+
+-- Tabela de Relacionamento de Produtos e Pedidos (Detalhes do Pedido)
+create table orderDetails (
+    idOrderDetail int auto_increment primary key,
+    idOrder int,
+    idProduct int,
+    quantity int,
+    totalValue float,
+    constraint fk_od_order foreign key (idOrder) references orders(idOrder),
+    constraint fk_od_product foreign key (idProduct) references product(idProduct)
+);
+
+
+-- Clientes
+insert into clients (Fname, Minit, Lname, CPF, Address) values 
+('Helena', 'R', 'Godoy', '12345678901', 'Rua A, 123'),
+('Kayo', 'J', 'Silva', '98765432100', 'Rua B, 456'),
+('Empresa X', null, null, null, '11122233344455', 'Av. Comercial, 1000');
+
+-- Vendedores
+insert into seller (SocialName, CNPJ, Address) values 
+('Vendedor 1', '00000000000191', 'Av. Vendedor, 500'),
+('Vendedor 2', '00000000000292', 'Av. Vendedor, 1000');
+
+-- Fornecedores
+insert into supplier (SocialName, CNPJ, Address, contact) values 
+('Fornecedor A', '99999999999191', 'Rua Fornecedor, 20', '1234567890'),
+('Fornecedor B', '99999999999292', 'Rua Fornecedor, 40', '0987654321');
+
+-- Produtos
+insert into product (Pname, Price, Stock) values 
+('Produto 1', 50.00, 100),
+('Produto 2', 30.00, 200),
+('Produto 3', 100.00, 50);
+
+-- Relacionamento Produto e Fornecedor
+insert into productSupplier (idPsProduct, idPsSupplier, quantity) values 
+(1, 1, 50),
+(2, 2, 100);
+
+-- Pagamentos
+insert into payments (idClient, typePayment, limitAvailable) values 
+(1, 'Cartão', 1000),
+(2, 'Boleto', 2000);
+
+-- Pedidos
+insert into orders (idOrderClient, orderStatus, orderDescription, trackingCode, deliveryStatus) values 
+(1, 'Confirmado', 'Pedido 1', 'ABC123', 'Enviado'),
+(2, 'Em processamento', 'Pedido 2', 'DEF456', 'Pendente');
+
+-- Detalhes do Pedido
+insert into orderDetails (idOrder, idProduct, quantity, totalValue) values 
+(1, 1, 2, 100),
+(2, 2, 3, 90);
+
+
+-- Quantos pedidos foram feitos por cada cliente?
+select c.idClient, c.Fname, c.Lname, count(o.idOrder) as TotalOrders
+from clients c
+join orders o on c.idClient = o.idOrderClient
+group by c.idClient
+having count(o.idOrder) > 0;
+
+-- Algum vendedor também é fornecedor?
+select s.SocialName
+from seller s
+join supplier sp on s.CNPJ = sp.CNPJ
+or s.CPF = sp.contact;
+
+-- Relação de produtos, fornecedores e estoques
+select p.Pname, s.SocialName, ps.quantity
+from product p
+join productSupplier ps on p.idProduct = ps.idPsProduct
+join supplier s on ps.idPsSupplier = s.idSupplier;
+
+-- Relação de nomes dos fornecedores e produtos fornecidos
+select s.SocialName, p.Pname
+from supplier s
+join productSupplier ps on s.idSupplier = ps.idPsSupplier
+join product p on ps.idPsProduct = p.idProduct;
